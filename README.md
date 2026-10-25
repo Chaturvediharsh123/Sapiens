@@ -81,6 +81,22 @@ culprit doctor                       # checks git, pytest, Ollama, the model, an
 
 **Any open model you already have in Ollama works.** With no settings, Culprit picks the best installed one automatically: Gemma 4 first, then code models (like `qwen2.5-coder`), then other chat models (Llama, Gemma 3, Mistral, Qwen…). It skips embedding models and prefers laptop-sized models over huge ones. To choose yourself, use `--model llama3.2:3b` or set `CULPRIT_MODEL`.
 
+### Choose your model
+
+Culprit works with **any chat model in Ollama**. See what you have with `ollama list`.
+
+| What you want | How |
+| --- | --- |
+| Let Culprit pick | Do nothing. It picks the best installed model (Gemma 4, then code models, then other chat models). |
+| Use a model for one run | `culprit "bug report" --model gemma3:4b` |
+| Use a model for every run (Git Bash, Mac, Linux) | `export CULPRIT_MODEL=gemma3:4b` |
+| Use a model for every run (Windows CMD) | `set CULPRIT_MODEL=gemma3:4b` |
+| Use a model for every run (PowerShell) | `$env:CULPRIT_MODEL="gemma3:4b"` |
+| Get a new model | `ollama pull llama3.2:3b` |
+| Check which model will be used | `culprit doctor` |
+
+Use the exact name `ollama list` shows. Embedding models such as `nomic-embed-text` cannot be used. Models from about 3B to 8B parameters work well on a laptop; code models like `qwen2.5-coder` are good at writing the tests and fixes. If Ollama runs on another machine, pass `--host http://that-machine:11434`.
+
 ### Developer install (to change the code)
 
 ```bash
