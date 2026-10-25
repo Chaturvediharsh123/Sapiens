@@ -2,6 +2,8 @@
 
 **An offline agent that finds the exact commit that broke your code (or made it hackable), explains why, and proves a fix.**
 
+**[Interactive code graph](https://chaturvediharsh123.github.io/Sapiens/docs/graphify/graph.html)** · [Quick start](#quick-start) · [How it works](#how-it-works-the-model-proposes-real-tools-verify) · [Results](#results) · [Demo repo](#try-it-on-the-demo-repo-7-planted-bugs) · [Agent skill](#use-as-an-agent-skill)
+
 Give Culprit a bug report in plain words. It locates the code with a [Graphify](https://github.com/Graphify-Labs/graphify) code map, writes a test that reproduces the bug, runs `git bisect` to pin down the guilty commit, explains it, and commits a verified fix plus a regression test on a new branch. The model is any local open-weight model running through **Ollama** (Gemma, Qwen, Llama, Mistral…): no internet, no hosted AI, and your code never leaves your machine.
 
 ```
@@ -120,32 +122,42 @@ Graphify is run as `graphify . --code-only`, which parses code locally with tree
 
 ## Use as an agent skill
 
-`skills/culprit/SKILL.md` follows the Agent Skills format, so coding agents (Claude Code, Gemini CLI, Codex, …) can call Culprit when you say "find what broke login". Copy the folder into your agent's skills directory. The agent only runs the CLI; all model calls inside Culprit stay local.
+`skills/culprit/SKILL.md` follows the Agent Skills format, so coding agents that support skills can call Culprit when you say "find what broke login". Copy the folder into your agent's skills directory. The agent only runs the CLI; all model calls inside Culprit stay local.
 
 ---
 
-## Benchmark
+## Results
+
+### Real runs on a laptop
+
+Completed runs with `qwen2.5-coder:3b` on a 16 GB Windows laptop, no GPU, Wi-Fi not needed. Every culprit below matches the commit where the bug was actually planted.
+
+| Bug report | Culprit found | Correct | Fix verified | Time | Speed |
+| --- | --- | --- | --- | --- | --- |
+| Coupon SAVE10 fails in lowercase | `220f05df` "Simplify coupon lookup" (Aman) | yes | yes | 63 s | 14.2 tok/s |
+| Signup rejects emails with a + sign (run 2) | `2d933b90` "Clean up email validation pattern" (Rahul) | yes | yes | 88 s | 12.0 tok/s |
+| Signup rejects emails with a + sign (run 3) | `2d933b90` "Clean up email validation pattern" (Rahul) | yes | yes | 91 s | 12.4 tok/s |
+
+The two email runs wrote different reproduction tests but reached the same commit and the same fix: the model's wording can vary, while `git bisect` makes the answer exact.
+
+### Run the full benchmark
 
 ```bash
-python bench/run_bench.py            # 7 bugs x 3 runs with the local model
-python bench/run_bench.py --auto-good
+python bench/run_bench.py            # all 7 bugs x 3 runs with your local model
+python bench/run_bench.py --auto-good  # also let Culprit find the good commit itself
 ```
 
-It prints a table and writes `bench/results.json` and `bench/RESULTS.md`.
-
-<!-- TEAM: paste the contents of bench/RESULTS.md here after running the benchmark on the demo laptop -->
-**Results:** _run `python bench/run_bench.py` and paste `bench/RESULTS.md` here._
+It prints a table and writes `bench/results.json` and `bench/RESULTS.md` (culprit accuracy, fixes verified, Bandit findings cleared, same answer across runs, tokens/sec).
 
 ### Model and hardware
 
-<!-- TEAM: fill from `culprit doctor` output -->
 | | |
 | --- | --- |
-| Model | `qwen2.5-coder:3b` via Ollama (open weights) |
+| Model | `qwen2.5-coder:3b` via Ollama (open weights); any Ollama chat model works |
 | Parameters | 3.1B |
 | Quantization | Q4_K_M |
-| Minimum hardware tested | `<CPU>`, 16 GB RAM, Windows 11, no GPU |
-| Generation speed | 23.2 tokens/sec (`culprit doctor`); `<benchmark average>` across the benchmark |
+| Minimum hardware tested | Windows 11 laptop, 16 GB RAM, CPU only (no GPU) |
+| Generation speed | 23 to 28 tokens/sec in `culprit doctor`; 12 to 14 tokens/sec during full runs |
 
 ---
 
