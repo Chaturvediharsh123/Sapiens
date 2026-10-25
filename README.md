@@ -2,7 +2,7 @@
 
 **An offline agent that finds the exact commit that broke your code (or made it hackable), explains why, and proves a fix.**
 
-Give Culprit a bug report in plain words. It locates the code with a [Graphify](https://github.com/Graphify-Labs/graphify) code map, writes a test that reproduces the bug, runs `git bisect` to pin down the guilty commit, explains it, and commits a verified fix plus a regression test on a new branch. The model is a local open-weight **Gemma 4** running through **Ollama**: no internet, no hosted AI, and your code never leaves your machine.
+Give Culprit a bug report in plain words. It locates the code with a [Graphify](https://github.com/Graphify-Labs/graphify) code map, writes a test that reproduces the bug, runs `git bisect` to pin down the guilty commit, explains it, and commits a verified fix plus a regression test on a new branch. The model is any local open-weight model running through **Ollama** (Gemma, Qwen, Llama, Mistral…): no internet, no hosted AI, and your code never leaves your machine.
 
 ```
 $ culprit "Login succeeds with a wrong password that contains a quote, like x' OR '1'='1" --security
@@ -36,11 +36,11 @@ $ culprit "Login succeeds with a wrong password that contains a quote, like x' O
 
 | Step | What happens | Checked by |
 | --- | --- | --- |
-| 1. Locate | Gemma turns the report into keywords; Graphify's code map (functions, calls, docstrings) ranks the 3-5 most relevant functions | Graphify `graph.json` (tree-sitter, no LLM) |
-| 2. Reproduce | Gemma writes a pytest test for the bug | Must **fail** at the bad commit and **pass** at a good one, or it is rejected and retried with the error as feedback (max 3) |
+| 1. Locate | The model turns the report into keywords; Graphify's code map (functions, calls, docstrings) ranks the 3-5 most relevant functions | Graphify `graph.json` (tree-sitter, no LLM) |
+| 2. Reproduce | The model writes a pytest test for the bug | Must **fail** at the bad commit and **pass** at a good one, or it is rejected and retried with the error as feedback (max 3) |
 | 3. Bisect | `git bisect run` with that test | Exact search, no AI. Result double-checked: passes at the culprit's parent, fails at the culprit |
-| 4. Explain | Gemma reads the culprit diff + the blast radius (everything that calls the changed code, 2 hops, from the graph) | |
-| 5. Fix | Gemma rewrites only the broken function/statement | Repro test passes, no new failures in the project's test suite, Bandit finding gone (security mode). Committed on `culprit/fix-<sha>` with a regression test. Never merged |
+| 4. Explain | The model reads the culprit diff + the blast radius (everything that calls the changed code, 2 hops, from the graph) | |
+| 5. Fix | The model rewrites only the broken function/statement | Repro test passes, no new failures in the project's test suite, Bandit finding gone (security mode). Committed on `culprit/fix-<sha>` with a regression test. Never merged |
 
 Because the AI only *proposes* and every step is confirmed by pytest, git or Bandit, a small model on a laptop gives answers you can trust, and the same answer every run (temperature 0, fixed seed, exact bisect).
 
@@ -58,26 +58,40 @@ Because the AI only *proposes* and every step is confirmed by pytest, git or Ban
 
 ## Quick start
 
-Requirements: Python 3.10+, git, [Ollama](https://ollama.com). Tested target: an 8 GB RAM laptop.
+Requirements: Python 3.10+, git, [Ollama](https://ollama.com). Runs on a normal laptop (no GPU needed).
+
+### Install in two commands
 
 ```bash
-# 1. local model (pick the smallest Gemma 4 size in the Ollama library that fits your RAM)
-ollama pull gemma4            # or a specific size tag, e.g. ollama pull gemma4:<size>
-
-# 2. Culprit
-git clone https://github.com/<your-team>/culprit && cd culprit
-pip install -e .
-
-# 3. Graphify code map (optional but recommended; Culprit falls back to a built-in AST graph)
-uv tool install graphifyy     # or: pip install graphifyy
-
-# 4. check everything, including model size and tokens/sec
-culprit doctor
+pip install pipx
+pipx install "culprit @ git+https://github.com/Chaturvediharsh123/Sapiens.git"
+pipx inject culprit graphifyy        # optional: Graphify code map
 ```
 
-Culprit picks the smallest installed `gemma4*` model automatically. Override with `--model` or `CULPRIT_MODEL`.
+pipx gives you a global `culprit` command in its own sandbox: no virtual environment to create or activate.
+
+### Get a model (skip if you already have one in Ollama)
+
+```bash
+ollama pull qwen2.5-coder:3b         # small and good at code; any other chat model works too
+culprit doctor                       # checks git, pytest, Ollama, the model, and tokens/sec
+```
+
+**Any open model you already have in Ollama works.** With no settings, Culprit picks the best installed one automatically: Gemma 4 first, then code models (like `qwen2.5-coder`), then other chat models (Llama, Gemma 3, Mistral, Qwen…). It skips embedding models and prefers laptop-sized models over huge ones. To choose yourself, use `--model llama3.2:3b` or set `CULPRIT_MODEL`.
+
+### Developer install (to change the code)
+
+```bash
+git clone https://github.com/Chaturvediharsh123/Sapiens.git culprit && cd culprit
+python -m venv .venv && source .venv/bin/activate      # Windows Git Bash: source .venv/Scripts/activate
+pip install -e . && pip install graphifyy
+```
+
+On Windows, also run `export PYTHONUTF8=1` (Git Bash) so the terminal output's ✓ symbols print correctly.
 
 ### Try it on the demo repo (7 planted bugs)
+
+The demo generator lives in this repo, so clone it first if you installed with pipx.
 
 ```bash
 python demo/make_demo_repo.py demo-shop       # 30 commits, 5 normal + 2 security bugs
@@ -127,11 +141,11 @@ It prints a table and writes `bench/results.json` and `bench/RESULTS.md`.
 <!-- TEAM: fill from `culprit doctor` output -->
 | | |
 | --- | --- |
-| Model | Gemma 4 `<tag>` via Ollama (open weights) |
-| Parameters | `<from culprit doctor>` |
-| Quantization | `<from culprit doctor>` |
-| Minimum hardware tested | `<CPU>`, 8 GB RAM, `<OS>`, no GPU |
-| Generation speed | `<best tokens/sec from benchmark>` |
+| Model | `qwen2.5-coder:3b` via Ollama (open weights) |
+| Parameters | 3.1B |
+| Quantization | Q4_K_M |
+| Minimum hardware tested | `<CPU>`, 16 GB RAM, Windows 11, no GPU |
+| Generation speed | 23.2 tokens/sec (`culprit doctor`); `<benchmark average>` across the benchmark |
 
 ---
 
@@ -140,8 +154,8 @@ It prints a table and writes `bench/results.json` and `bench/RESULTS.md`.
 | Requirement | How Culprit meets it |
 | --- | --- |
 | One clearly defined task | Bug report in → guilty commit + verified fix out |
-| Local inference only | Gemma 4 through Ollama on the laptop; no hosted model APIs anywhere |
-| Open-source / open-weight model | Gemma 4 |
+| Local inference only | Ollama on the laptop; no hosted model APIs anywhere |
+| Open-source / open-weight model | qwen2.5-coder:3b (also works with Gemma, Llama, Mistral and other Ollama models) |
 | Non-generative external tools | git, pytest, Graphify (`--code-only`, tree-sitter), Bandit |
 | Public repo, open-source license | MIT |
 | Model, parameter count, hardware | Table above, filled from `culprit doctor` |
@@ -155,7 +169,7 @@ pip install pytest pyyaml
 pytest -q tests/
 ```
 
-The offline suite (`tests/test_offline_pipeline.py`) runs the full pipeline on all 7 planted bugs with a scripted stand-in for the model, testing every non-AI part: worktrees, pytest checks, graph-guided and full bisect, auto good-commit search, retry on a broken test, Bandit, fix verification and regression tests. `tests/test_llm_client.py` tests the Ollama client against a local server that speaks Ollama's API. Real runs always use Gemma.
+The offline suite (`tests/test_offline_pipeline.py`) runs the full pipeline on all 7 planted bugs with a scripted stand-in for the model, testing every non-AI part: worktrees, pytest checks, graph-guided and full bisect, auto good-commit search, retry on a broken test, Bandit, fix verification and regression tests. `tests/test_llm_client.py` tests the Ollama client against a local server that speaks Ollama's API. Real runs always use a local model through Ollama.
 
 ## Project layout
 
@@ -163,7 +177,7 @@ The offline suite (`tests/test_offline_pipeline.py`) runs the full pipeline on a
 culprit/
   cli.py         command line + `culprit doctor`
   pipeline.py    locate -> reproduce -> bisect -> explain -> fix -> report
-  llm.py         Ollama client: temperature 0, seed, JSON schema output, retries, tokens/sec
+  llm.py         Ollama client: model auto-pick, temperature 0, seed, JSON schema output, retries, tokens/sec
   graph.py       Graphify graph.json loader + built-in AST fallback, blast radius
   locate.py      keyword + graph ranking of relevant code
   repro.py       test generation, validation, auto good-commit search

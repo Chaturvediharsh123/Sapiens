@@ -5,7 +5,7 @@ Tracks: **Best Open-Source AI Project** and **Best Local Agentic Tool / Edge AI*
 ## Run order on the demo laptop
 
 ```bash
-ollama pull gemma4                  # smallest size that fits 8 GB
+ollama list                         # any chat model works; we use qwen2.5-coder:3b
 pip install -e . && pip install graphifyy
 culprit doctor                      # copy model name, parameters, quantization, tokens/sec
 python demo/make_demo_repo.py demo-shop
@@ -22,11 +22,11 @@ If the model struggles on a bug, try a more specific report (name the function o
 **Project name:** Culprit
 
 **Description:**
-Culprit is an offline agent that finds the exact git commit that introduced a bug or a security hole, explains why, and proves a fix. You describe the bug in plain words. A local Gemma 4 model (Ollama) proposes, and real tools verify every step: Graphify's code map locates the relevant functions, Gemma writes a reproduction test that must fail on the buggy code and pass on an older commit, `git bisect` pins down the culprit exactly (graph-guided, with a flaky-test guard), Gemma explains the diff and its blast radius, and a fix is only accepted when the test passes, the project's suite has no new failures and, in security mode, the Bandit finding is gone. The fix and a regression test land on a new branch; nothing is merged and nothing leaves the laptop. It also ships as an Agent Skill (SKILL.md) so coding agents can use it. Benchmark on a 30-commit demo repo with 7 planted bugs (5 regressions, 2 security), 3 runs each: <paste summary line from bench/RESULTS.md>.
+Culprit is an offline agent that finds the exact git commit that introduced a bug or a security hole, explains why, and proves a fix. You describe the bug in plain words. A local open-weight model (qwen2.5-coder:3b via Ollama; any Ollama chat model works) proposes, and real tools verify every step: Graphify's code map locates the relevant functions, the model writes a reproduction test that must fail on the buggy code and pass on an older commit, `git bisect` pins down the culprit exactly (graph-guided, with a flaky-test guard), the model explains the diff and its blast radius, and a fix is only accepted when the test passes, the project's suite has no new failures and, in security mode, the Bandit finding is gone. The fix and a regression test land on a new branch; nothing is merged and nothing leaves the laptop. It also ships as an Agent Skill (SKILL.md) so coding agents can use it. Benchmark on a 30-commit demo repo with 7 planted bugs (5 regressions, 2 security), 3 runs each: <paste summary line from bench/RESULTS.md>.
 
-**Technologies:** Python, Ollama, Gemma 4 (open weights), Graphify, git bisect, pytest, Bandit, pydantic, Rich
+**Technologies:** Python, Ollama, qwen2.5-coder:3b (open weights), Graphify, git bisect, pytest, Bandit, pydantic, Rich
 
-**Source code:** https://github.com/<team>/culprit (MIT)
+**Source code:** https://github.com/Chaturvediharsh123/Sapiens (MIT)
 
 **Live demo:** screen recording of one full run + the benchmark (see below)
 

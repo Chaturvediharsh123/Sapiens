@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from culprit.llm import OllamaLLM, extract_code, resolve_model  # noqa: E402
+from culprit.llm import OllamaLLM, extract_code, resolve_model, usable_models  # noqa: E402
 from culprit.locate import Keywords  # noqa: E402
 
 REPLIES: list[str] = []
@@ -70,3 +70,21 @@ def test_code_extraction(host):
     llm = OllamaLLM("gemma4:small", host)
     assert llm.code("sys", "user", purpose="repro").startswith("def test_culprit_repro")
     assert extract_code("no code here") is None
+
+
+def test_any_installed_chat_model_is_used_when_no_gemma4():
+    models = [{"name": "nomic-embed-text:latest", "size": 274e6, "details": {"family": "nomic-bert"}},
+              {"name": "tinyllama:latest", "size": 637e6},
+              {"name": "llama3.1:70b", "size": 40e9},
+              {"name": "mistral:7b", "size": 4.1e9},
+              {"name": "qwen2.5-coder:3b", "size": 1.9e9}]
+    ranked = [m["name"] for m in usable_models(models)]
+    assert ranked[0] == "qwen2.5-coder:3b"
+    assert "nomic-embed-text:latest" not in ranked
+    assert ranked[-1] == "llama3.1:70b"
+
+
+def test_thinking_text_is_removed(host):
+    REPLIES[:] = ['<think>let me reason about this</think>{"keywords": ["tax"]}']
+    out = OllamaLLM("gemma4:small", host).json("sys", "user", Keywords, purpose="keywords")
+    assert out.keywords == ["tax"]

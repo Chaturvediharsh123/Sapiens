@@ -5,7 +5,7 @@ description: Find which git commit introduced a bug or security hole in a Python
 
 # Culprit
 
-Culprit runs fully offline with a local Gemma model (Ollama). It writes a test that
+Culprit runs fully offline with a local open model (Ollama). It writes a test that
 reproduces the bug, runs `git bisect` to find the exact commit, explains it, and commits a
 verified fix plus a regression test on a branch named `culprit/fix-<sha>`. It never
 merges and never changes the user's checkout.
@@ -36,5 +36,5 @@ merges and never changes the user's checkout.
   come from several commits; ask for an older `--good`.
 
 ## Requirements
-Ollama with a Gemma 4 model, Python 3.10+, git, pytest. Optional: Graphify
+Ollama with any chat model (e.g. qwen2.5-coder:3b or a Gemma model), Python 3.10+, git, pytest. Optional: Graphify
 (`uv tool install graphifyy`) for the code map, Bandit for `--security`.

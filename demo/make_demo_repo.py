@@ -372,7 +372,7 @@ def build(target: Path) -> dict:
             files[path] = new
             p = target / path
             p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(new)
+            p.write_text(new, newline="\n")   # same bytes (and shas) on Windows
         git(target, "add", "-A")
         date = f"2026-10-{1 + i // 3:02d}T{10 + (i % 3) * 3:02d}:00:00+05:30"
         env = {**os.environ,
@@ -402,7 +402,7 @@ def write_bugs_yaml(info: dict, path: Path) -> None:
             f'    culprit_message: "{c["message"]}"',
         ]
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines) + "\n")
+    path.write_text("\n".join(lines) + "\n", newline="\n")
 
 
 def main() -> None:

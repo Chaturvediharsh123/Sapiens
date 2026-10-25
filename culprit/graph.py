@@ -11,6 +11,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -75,15 +76,28 @@ def _is_test_file(path: str) -> bool:
 
 # ---------------------------------------------------------------- Graphify backend
 
+def graphify_cmd() -> str | None:
+    """Find Graphify on PATH, or next to this Python (e.g. `pipx inject culprit graphifyy`)."""
+    found = shutil.which("graphify")
+    if found:
+        return found
+    for name in ("graphify", "graphify.exe"):
+        candidate = Path(sys.executable).parent / name
+        if candidate.exists():
+            return str(candidate)
+    return None
+
+
 def graphify_available() -> bool:
-    return shutil.which("graphify") is not None
+    return graphify_cmd() is not None
 
 
 def build_graphify(repo: Path, log=print) -> Path | None:
     """Run Graphify in code-only mode (local AST, no API key) and return graph.json."""
-    if not graphify_available():
+    cmd = graphify_cmd()
+    if not cmd:
         return None
-    proc = subprocess.run(["graphify", ".", "--code-only"], cwd=str(repo),
+    proc = subprocess.run([cmd, ".", "--code-only"], cwd=str(repo),
                           capture_output=True, text=True, timeout=600)
     path = repo / "graphify-out" / "graph.json"
     if proc.returncode != 0 or not path.exists():
