@@ -149,6 +149,14 @@ It prints a table and writes `bench/results.json` and `bench/RESULTS.md`.
 
 ---
 
+## Code map (Graphify)
+
+`docs/graphify/` holds Graphify's map of this repository, built locally with `graphify . --code-only` and `GRAPHIFY_BACKEND=none graphify cluster-only .` (tree-sitter parsing, no AI, zero tokens):
+
+- **[Open the interactive graph](https://chaturvediharsh123.github.io/Sapiens/docs/graphify/graph.html)** ([`graph.html`](docs/graphify/graph.html), 300 nodes, 777 edges, 16 clusters). The investigation pipeline is highlighted in red: click a step under "Follow the investigation" to fly to it and spotlight its neighbours. The file works offline too: download it and open it in a browser.
+- [`GRAPH_REPORT.md`](docs/graphify/GRAPH_REPORT.md): most connected functions, clusters and cross-file links.
+- [`graph.json`](docs/graphify/graph.json): the raw graph, the same format Culprit reads to locate bugs.
+
 ## Track requirements
 
 | Requirement | How Culprit meets it |
