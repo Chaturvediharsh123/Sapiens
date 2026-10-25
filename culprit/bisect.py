@@ -35,22 +35,35 @@ class BisectResult:
 
 
 def _run_bisect(repo: Path, good: str, bad: str, step_cmd: list[str], paths: list[str] | None) -> BisectResult:
+    """Binary search over the history between good and bad (the git bisect algorithm), run by
+    Culprit itself so it behaves the same with every git version and on every OS."""
+    args = ["rev-list", "--reverse", "--first-parent", f"{good}..{bad}"] + (["--", *paths] if paths else [])
+    cands = [c for c in git(repo, *args).splitlines() if c]
+    if not cands or cands[-1] != bad:
+        cands.append(bad)
+    env = dict(os.environ)
+    env["PYTHONPATH"] = PKG_PARENT + os.pathsep + env.get("PYTHONPATH", "")
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    log, steps = [], 0
     with worktree(repo, bad) as wt:
-        env = dict(os.environ)
-        env["PYTHONPATH"] = PKG_PARENT + os.pathsep + env.get("PYTHONPATH", "")
-        env["PYTHONDONTWRITEBYTECODE"] = "1"
-        start = ["bisect", "start", bad, good] + (["--", *paths] if paths else [])
-        try:
-            git(wt, *start, env=env)
-            proc = subprocess.run(["git", "bisect", "run", *step_cmd], cwd=str(wt),
-                                  capture_output=True, text=True, env=env, timeout=1800)
-            out = proc.stdout + proc.stderr
-            steps = len(re.findall(r"^running ", out, flags=re.M))
-            m = re.search(r"^([0-9a-f]{40}) is the first bad commit", out, flags=re.M)
-            return BisectResult(ok=bool(m), culprit=m.group(1) if m else "", steps=steps,
-                                guided=bool(paths), log=out[-4000:])
-        finally:
-            subprocess.run(["git", "bisect", "reset"], cwd=str(wt), capture_output=True, env=env)
+        lo, hi = 0, len(cands) - 1          # cands[hi] is known bad; everything before lo is good
+        while lo < hi:
+            mid = (lo + hi) // 2
+            sha = cands[mid]
+            git(wt, "checkout", "-q", "--detach", sha)
+            rc = subprocess.run(step_cmd, cwd=str(wt), env=env, capture_output=True, text=True, timeout=900).returncode
+            steps += 1
+            verdict = {0: "good", 1: "bad"}.get(rc, "skip")
+            log.append(f"{sha[:8]} {verdict}")
+            if verdict == "good":
+                lo = mid + 1
+            elif verdict == "bad":
+                hi = mid
+            else:                       # flaky or unrunnable: drop it and keep searching
+                cands.pop(mid)
+                hi -= 1
+        culprit = cands[hi] if cands else ""
+    return BisectResult(ok=bool(culprit), culprit=culprit, steps=steps, guided=bool(paths), log="\n".join(log))
 
 
 def verify(repo: Path, culprit: str, test_code: str | None) -> bool:
