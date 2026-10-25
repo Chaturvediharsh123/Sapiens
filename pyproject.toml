@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "culprit"
+version = "0.1.0"
+description = "Offline agent that finds which git commit introduced a bug or security hole, explains it, and proposes a verified fix. Local Gemma via Ollama."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.28",
+    "pydantic>=2.0",
+    "rich>=13.0",
+    "pytest>=7.0",
+    "pyyaml>=6.0",
+    "bandit>=1.7",
+]
+
+[project.scripts]
+culprit = "culprit.cli:main"
+
+[tool.setuptools]
+packages = ["culprit"]
