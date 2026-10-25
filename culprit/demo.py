@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -356,9 +357,15 @@ def git(repo: Path, *args: str, env: dict | None = None) -> str:
     return out.stdout.strip()
 
 
+def _force_remove(func, path, _exc):
+    """Windows: git object files are read-only; clear the flag and retry."""
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
+
+
 def build(target: Path) -> dict:
     if target.exists():
-        shutil.rmtree(target)
+        shutil.rmtree(target, onerror=_force_remove)
     target.mkdir(parents=True)
     git(target, "init", "-q", "-b", "main")
     git(target, "config", "user.name", "demo")
