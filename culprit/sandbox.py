@@ -34,6 +34,13 @@ class TestResult:
         return f"{self.status} ({self.reason})" if self.reason else self.status
 
 
+def _temp_file(prefix: str) -> Path:
+    """A closed temp file path (Windows cannot delete a file that is still open)."""
+    fd, name = tempfile.mkstemp(prefix=prefix, suffix=".xml")
+    os.close(fd)
+    return Path(name)
+
+
 def _env(workdir: Path) -> dict:
     env = dict(os.environ)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -45,7 +52,7 @@ def run_test(workdir: Path, test_code: str, timeout: int = 60) -> TestResult:
     """Write the test into `workdir`, run it once with pytest, classify the outcome."""
     test_path = workdir / TEST_FILE
     test_path.write_text(test_code)
-    report = Path(tempfile.mkstemp(prefix="culprit-junit-", suffix=".xml")[1])
+    report = _temp_file("culprit-junit-")
     try:
         try:
             proc = subprocess.run(
@@ -99,7 +106,7 @@ def run_test_n(workdir: Path, test_code: str, runs: int) -> tuple[str, list[Test
 
 def run_suite(workdir: Path, timeout: int = 300) -> tuple[set[str], str]:
     """Run the project's own tests. Returns the set of failing test ids and the output."""
-    report = Path(tempfile.mkstemp(prefix="culprit-suite-", suffix=".xml")[1])
+    report = _temp_file("culprit-suite-")
     try:
         proc = subprocess.run(
             [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--tb=line",
