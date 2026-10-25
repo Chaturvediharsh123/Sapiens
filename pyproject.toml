@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "culprit"
-version = "0.1.0"
+version = "0.2.0"
 description = "Offline agent that finds which git commit introduced a bug or security hole, explains it, and proposes a verified fix. Local Gemma via Ollama."
 readme = "README.md"
 license = { text = "MIT" }

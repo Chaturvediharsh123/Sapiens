@@ -93,6 +93,16 @@ On Windows, also run `export PYTHONUTF8=1` (Git Bash) so the terminal output's â
 
 ### Try it on the demo repo (7 planted bugs)
 
+Fastest way, works right after installing:
+
+```bash
+culprit demo            # list the 7 planted bugs
+culprit demo coupon     # build the demo shop and investigate one
+culprit demo login      # a security bug (SQL injection in login)
+```
+
+Or build it by hand:
+
 The demo generator lives in this repo, so clone it first if you installed with pipx.
 
 ```bash

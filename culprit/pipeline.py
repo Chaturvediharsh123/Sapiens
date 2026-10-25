@@ -84,11 +84,11 @@ def run(repo: Path, report: str, llm, good: str | None = None, bad: str = "HEAD"
     res.bad = bad_sha
 
     # 1 ---------------------------------------------------------------- locate
-    ui.step(1, "Locate the code (Graphify code map)")
+    ui.step(1, "Locate the code")
     with ui.working("building code map"):
         graph = load_graph(repo, use_graphify=use_graphify, log=ui.info)
     res.graph_source = graph.source
-    ui.info(f"  code map: {len(graph.code_nodes())} functions from "
+    ui.info(f"code map: {len(graph.code_nodes())} functions from "
             f"{'Graphify graph.json' if graph.source == 'graphify' else 'built-in AST graph'}")
     findings: list[security.Finding] = []
     if security_mode:
@@ -102,12 +102,14 @@ def run(repo: Path, report: str, llm, good: str | None = None, bad: str = "HEAD"
     res.keywords = keywords
     res.located = [u.label() for u in units]
     if not units:
-        ui.fail("Could not find any related code. Try naming the feature or function in the bug report.")
+        ui.case_open("No code related to this bug report was found.",
+                     ["name the feature or function in the report (e.g. coupon, login, checkout)",
+                      "check you are inside the right project folder"])
         return _finish(res, llm, t0, "not_located")
     ui.ok("most relevant: " + ", ".join(res.located))
 
     # 2 ---------------------------------------------------------------- reproduce
-    ui.step(2, "Reproduce the bug with a test")
+    ui.step(2, "Reproduce the bug")
     with ui.working("model is writing a test; pytest is checking it"):
         rep = reproduce(repo, bad_sha, good_sha, report, units, llm, log=ui.info)
     res.repro_attempts = rep.attempts
@@ -128,13 +130,17 @@ def run(repo: Path, report: str, llm, good: str | None = None, bad: str = "HEAD"
             ui.warn(f"no valid test after {rep.attempts} attempts; falling back to bisecting on "
                     f"Bandit rule {bandit_rule} in {bandit_file}")
         else:
-            ui.fail(f"could not write a valid reproduction test in {rep.attempts} attempts")
             for n in rep.notes:
-                ui.info(f"  {n}")
+                ui.info(n)
+            ui.case_open(f"Could not write a test that proves this bug ({rep.attempts} attempts). Culprit only "
+                         "reports what it can prove, so it stopped here.",
+                         ["give an input and the expected result, e.g. \"save10 should give 10% off\"",
+                          "pass --good <commit> if you know where it still worked",
+                          "try a bigger model with --model"])
             return _finish(res, llm, t0, "not_reproduced")
 
     # 3 ---------------------------------------------------------------- bisect
-    ui.step(3, "Bisect the history (git bisect, no AI)")
+    ui.step(3, "Bisect the history")
     paths = sorted({u.file for u in units}) if guided else None
     with ui.working("git bisect is testing commits"):
         bis = bisect(repo, res.good, bad_sha, test_code=res.test_code or None, paths=paths, runs=runs,
@@ -142,12 +148,16 @@ def run(repo: Path, report: str, llm, good: str | None = None, bad: str = "HEAD"
     res.bisect_steps, res.bisect_guided = bis.steps, bis.guided
     res.bisect_range, res.bisect_guided_range, res.bisect_verified = bis.range_size, bis.guided_range, bis.verified
     if not bis.ok:
-        ui.fail("bisect could not pin down a single commit")
         res.error = "; ".join(bis.notes)
+        ui.case_open("git bisect could not pin down a single commit.",
+                     ["the bug may be older than the good commit: pass an older --good",
+                      "the bug may come from several commits together"])
         return _finish(res, llm, t0, "not_bisected")
     info = commit_info(repo, bis.culprit)
     res.culprit = {"sha": info.sha, "author": info.author, "date": info.date, "message": info.message}
-    ui.ok(f"culprit: [bold]{info.short}[/bold] by {info.author} on {info.date}: \"{info.message}\"")
+    ui.culprit(info.sha, info.author, info.date, info.message, res.bisect_steps,
+               f"graph-guided over {res.bisect_guided_range} of {res.bisect_range} commits" if res.bisect_guided
+               else f"{res.bisect_range} commits searched")
 
     # 4 ---------------------------------------------------------------- explain
     ui.step(4, "Explain the culprit commit")
@@ -159,7 +169,7 @@ def run(repo: Path, report: str, llm, good: str | None = None, bad: str = "HEAD"
     ui.ok(exp.explanation.summary)
     ui.ok(f"root cause: {exp.explanation.root_cause}")
     if exp.blast:
-        ui.info("  blast radius: " + ", ".join(f"{q} ({h})" for q, _, h in exp.blast[:8]))
+        ui.info("blast radius: " + ", ".join(f"{q} ({h})" for q, _, h in exp.blast[:8]))
 
     # security rule for fix verification: a finding inside the changed code at the bad commit
     if security_mode and not bandit_rule:
@@ -175,7 +185,7 @@ def run(repo: Path, report: str, llm, good: str | None = None, bad: str = "HEAD"
 
     # 5 ---------------------------------------------------------------- fix
     if do_fix and res.test_code:
-        ui.step(5, "Fix it and prove the fix")
+        ui.step(5, "Fix it and prove it")
         with ui.working("model is writing a fix; tests are checking it"):
             fx = make_fix(repo, bad_sha, info, report, exp, res.test_code, llm, bandit_rule=bandit_rule,
                           log=ui.info)
@@ -193,13 +203,16 @@ def run(repo: Path, report: str, llm, good: str | None = None, bad: str = "HEAD"
     report_path = report_writer.write(out, res)
     res.report_path = str(report_path)
     report_writer.write(out, res)   # rewrite so result.json includes report_path
-    ui.summary([
-        ("Culprit", f"{info.short}  \"{info.message}\"  ({info.author}, {info.date})"),
-        ("Bisect", f"{res.bisect_steps} test runs, "
-                   f"{'graph-guided ' + str(res.bisect_guided_range) + '/' if res.bisect_guided else ''}"
-                   f"{res.bisect_range} commits, verified" if res.bisect_verified else "unverified"),
-        ("Fix", f"{res.fix['branch']} (verified)" if res.fix.get("ok") else "not produced"),
-        ("Speed", f"{res.seconds:.1f}s total, {res.tokens_per_sec:.1f} tokens/sec, {res.llm_calls} model calls"),
-        ("Report", str(report_path)),
-    ], title="Culprit found it", good=True)
+    fixed = res.fix.get("ok")
+    rows = [("culprit", f"[bold #ff4f61]{info.short}[/]  \"{info.message}\"  ({info.author}, {info.date})"),
+            ("why", exp.explanation.root_cause),
+            ("fix", f"[#3fb950]verified[/] on branch [bold]{res.fix['branch']}[/] + regression test" if fixed
+             else ("skipped (--no-fix)" if not do_fix else "not produced; the culprit above still stands")),
+            ("speed", f"{res.seconds:.0f}s · {res.tokens_per_sec:.1f} tokens/sec · {res.llm_calls} model calls"),
+            ("report", str(report_path))]
+    nxt = [("see the fix", f"git diff HEAD {res.fix['branch']}"),
+           ("keep it", f"git merge {res.fix['branch']}"),
+           ("share it", f"git push origin {res.fix['branch']}")] if fixed else []
+    nxt.append(("read the evidence", f"open {report_path}"))
+    ui.case_closed(rows, nxt)
     return res
