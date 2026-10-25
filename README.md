@@ -21,6 +21,7 @@ $ culprit demo coupon
 ```
 
 > Built at **Hacktoberfest Hack Day Jaipur x Hack IT Sapiens** (25 Oct 2026) for the *Best Local Agentic Tool* and *Best Open-Source AI Project* tracks.
+> Authors: **Chitranshu Shekhawat** and **Harsh Chaturvedi**.
 
 ## The problem
 
